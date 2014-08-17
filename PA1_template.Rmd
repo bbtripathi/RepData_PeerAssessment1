@@ -1,20 +1,135 @@
 # Reproducible Research: Peer Assessment 1
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
+The data for this assignment was  downloaded from the course web site:
+
+Dataset: [Activity monitoring data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip)
+
+The variables included in this dataset are:
+
+1. steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+2. date: The date on which the measurement was taken in YYYY-MM-DD format
+3. interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+```{r setoptions, echo=FALSE, results='hide'}
+library(lattice)
+library(knitr)
+opts_chunk$set(echo=TRUE, results='asis')
+```
 
 ## Loading and preprocessing the data
 
-
+Read the data from the file.
+```{r}
+if(!file.exists('activity.csv')){
+    unzip('activity.zip')
+}
+data <- read.csv('activity.csv')
+data$date <- as.Date(data$date,"%Y-%m-%d")
+```
 
 ## What is mean total number of steps taken per day?
 
+For each day, calculate  mean number of steps:
+```{r}
+Steps <- tapply(data$steps, data$date, sum, na.rm=TRUE)
+```
+
+Plot a histogram of total number of steps per day:
+```{r histogram}
+hist(Steps, main = "Total Steps taken Per Day (complete cases only)", 
+    xlab = "Total Steps Per Day", ylab = "Frequency (Number of Days)", 
+    breaks = 10, xlim = c(0, 25000), ylim = c(0, 25), col = "grey")
+```
+
+Calculate mean and median of total steps per day:
+```{r}
+meanSteps <- mean(Steps)
+medSteps <- median(Steps)
+```
+
+The mean of total steps per day is `r meanSteps`  
+The median of total steps per day is `r medSteps`
 
 
 ## What is the average daily activity pattern?
 
+Calculate the mean steps for every five minutes
+```{r}
+mSteps <- tapply(data$steps,data$interval, mean,na.rm=TRUE)
+```
 
+Which five minute interval has the highest mean number of steps?
+```{r}
+intrvlNo <- which.max(mSteps)
+maxSteps <- names(intrvlNo)
+maxSteps
+```
+
+Time series plot for the mean steps.
+```{r timeseriesplot}
+plot(row.names(mSteps),mSteps,type="l",
+     xlab="Time Intervals at 5-minute", 
+     ylab="Mean number of steps taken (all Days)", 
+     main="Average Steps Taken at 5 minute Intervals",
+     col="blue")
+```
+
+Based on this data with the missing values removed, the five-minute interval that contains the maximum number of average steps per day is ` r intrvlNo `.
 
 ## Imputing missing values
+Identify the number of intervals with missing step counts ("NA's"):
+```{r}
+summary(data)
+```
 
+To fill in the missing values, I'll use mean steps for a five-minute interval for the entire dataset.
+```{r}
+library(Hmisc)
+imputedData <- data
+imputedData$steps <- with(imputedData, impute(steps, mean))
+```
+
+Let's compare the mean and median steps for each day between the original data set and the imputed data set.
+```{r}
+imputedSteps <- tapply(imputedData$steps, imputedData$date, sum)
+
+mean(Steps)
+mean(imputedSteps)
+median(Steps)
+median(imputedSteps)
+```
+
+Draw a histogram of the imputed dataset.
+```{r histogram_imputed}
+library(ggplot2)
+qplot(imputedSteps, xlab='Total steps', ylab='Frequency')
+```
+
+As expected, the average number of steps have increased.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Add a factor column for whether a day is a weekday or weekend.
+```{r}
+days <- weekdays(data$date)
+data$day_type <- ifelse(days == "Saturday" | days == "Sunday", 
+                                "Weekend", "Weekday")
+meansteps <- aggregate(data$steps,
+                                    by=list(data$interval,
+                                            data$day_type),mean)
+names(meansteps) <- c("interval","day_type","steps")
+xyplot(steps~interval | day_type, meansteps,type="l",
+       layout=c(1,2),xlab="Interval",ylab = "Number of steps")
+```
+
+Create a dataframe that holds the mean steps for weekdays and weekends.
+```{r}
+tapply(meansteps$steps,meansteps$day_type,
+       function (x) { c(MINIMUM=min(x),MEAN=mean(x),
+                        MEDIAN=median(x),MAXIMUM=max(x))})
+```
+
